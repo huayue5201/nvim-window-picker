@@ -1,40 +1,55 @@
-local builder = require('window-picker.builder')
+local Picker = require('window-picker.core.picker')
+local configurer = require('window-picker.configurer')
 local dconfig = require('window-picker.config')
+local registry = require('window-picker.core.registry')
 
 local M = {}
 
+---@param custom_config table|nil
+---@return number|nil window id or nil
 function M.pick_window(custom_config)
+	return M._pick(custom_config)
+end
+
+---pick any target (nvim window or external pane) and return it. the target is
+---already focused as a side effect. callers can dispatch on `target.kind`.
+---@param custom_config table|nil
+---@return table|nil target
+function M.pick_target(custom_config)
+	return M._pick(custom_config, true)
+end
+
+---@param custom_config table|nil
+---@param return_target boolean|nil
+---@return number|table|nil
+function M._pick(custom_config, return_target)
 	local config = dconfig
 
-	-- merge the config
 	if custom_config then
 		config = vim.tbl_deep_extend('force', config, custom_config)
 	end
 
-	local hint
+	config = configurer:new(config).config
+	config.return_target = return_target or false
 
-	if type(config.hint) == 'string' then
-		local ok, result =
-			pcall(require, ('window-picker.hints.%s-hint'):format(config.hint))
+	return Picker:new(config):pick()
+end
 
-		if not ok then
-			vim.notify(
-				('No hint found by the name "%s"\nError: %s'):format(
-					config.hint,
-					result
-				),
-				vim.log.levels.ERROR
-			)
+---register a third party source. `factory` is a table (or module name) with a
+---`new(opts, config)` constructor and `available()` / `list(context)` methods.
+---@param name string
+---@param factory table|string
+function M.register_source(name, factory)
+	registry.register_source(name, factory)
+end
 
-			return
-		end
-
-		hint = result:new()
-	else
-		hint = config.hint
-	end
-
-	return builder:new():set_config(config):set_hint(hint):build():pick_window()
+---register a third party renderer. `factory` is a table (or module name) with
+---a `new(config)` constructor and `supports(target)` / `draw(entries, ctx)` /
+---`clear()` methods.
+---@param name string
+---@param factory table|string
+function M.register_renderer(name, factory)
+	registry.register_renderer(name, factory)
 end
 
 function M.setup(opts)

@@ -188,6 +188,96 @@ require('window-picker').pick_window({
 })
 ```
 
+## Sources and renderers
+
+Candidates can come from more than one place. A **source** collects targets
+and a **renderer** draws the selection hints for the targets it supports.
+Targets that no renderer supports are shown in a floating list, so mixing
+sources always works out of the box.
+
+Built in sources:
+
+| name | description |
+| --- | --- |
+| `nvim` | windows of the current nvim instance |
+| `herdr` | panes of the [herdr](https://herdr.dev) session the nvim runs in |
+
+Built in renderers:
+
+| name | description |
+| --- | --- |
+| `nvim_statusline_winbar` | the classic statusline/winbar hints |
+| `nvim_floating_letter` | a floating letter per nvim window |
+| `nvim_floating_big_letter` | a floating big letter per nvim window |
+| `floating_list` | floating list, also the fallback for non-nvim targets |
+
+```lua
+require('window-picker').setup({
+    -- enable/disable and configure sources. both forms work:
+    --   sources = { 'nvim', { name = 'herdr', opts = { scope = 'tab' } } }
+    --   sources = { nvim = true, herdr = { scope = 'workspace' } }
+    -- herdr scope is one of 'tab' | 'workspace' (default) | 'all'
+    sources = {
+        nvim = true,
+    },
+
+    -- override the renderers. when omitted it is derived from `hint`.
+    -- renderers = { 'nvim_statusline_winbar', 'floating_list' },
+})
+```
+
+When running inside a herdr pane (`HERDR_ENV=1`) you can pick across panes.
+Because `pick_window()` always returns a plain nvim window id (or `nil`), use
+`pick_target()` when the caller needs to know which tool was picked:
+
+```lua
+-- window id, or nil when a non-nvim target was picked (already focused)
+local win = require('window-picker').pick_window({
+    sources = { 'nvim', { name = 'herdr', opts = { scope = 'workspace' } } },
+})
+
+-- raw target, e.g. { id = 'herdr:wQ:p1', kind = 'herdr', meta = { pane_id = ... } }
+local target = require('window-picker').pick_target({
+    sources = { 'nvim', { name = 'herdr', opts = { scope = 'workspace' } } },
+})
+if target and target.kind == 'nvim' then
+    vim.api.nvim_set_current_win(target.window)
+end
+```
+
+`pick_window()` returns an nvim window id for nvim targets and `nil` for
+external targets (after focusing them). `pick_target()` returns the focused
+target so callers can dispatch on `target.kind`. Keeping `pick_window()`
+nvim-only matters because integrations such as neo-tree's
+`open_with_window_picker` pass the result straight to `nvim_set_current_win`.
+
+### Extending
+
+Register your own source or renderer. Sources need
+`available()` and `list(context) -> target[]`; a target is
+`{ id, kind, title?, detail?, window?, focus? }` where `focus` is called as
+`target:focus()` on selection. Renderers need `supports(target)`,
+`draw(entries, ctx)` and `clear()`.
+
+```lua
+require('window-picker').register_source('my_tool', {
+    new = function(self, opts, config) return setmetatable({}, { __index = self }) end,
+    available = function() return true end,
+    list = function() return { { id = 'x', kind = 'my_tool' } } end,
+})
+```
+
+Renderers are registered the same way:
+
+```lua
+require('window-picker').register_renderer('my_renderer', {
+    new = function(config) return setmetatable({}, { __index = renderer }) end,
+    supports = function(target) return target.kind == 'my_tool' end,
+    draw = function(self, entries, ctx) --[[ render entries ]] end,
+    clear = function(self) --[[ undo draw ]] end,
+})
+```
+
 ## Theming
 
 If you just want to define the colors using Neovim Highlights, then it's totally

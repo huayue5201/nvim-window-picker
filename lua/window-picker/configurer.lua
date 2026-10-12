@@ -66,34 +66,6 @@ function M._backward_compatibility_config_changes(config)
 	return config
 end
 
-function M:config_filter(filter)
-	if self.config.filter_func then
-		filter = {
-			filter_windows = function(_, windows)
-				return self.config.filter_func(
-					windows,
-					self.config.filter_rules
-				)
-			end,
-		}
-
-		return filter
-	end
-
-	filter:set_config(self.config.filter_rules)
-	return filter
-end
-
-function M:config_hint(hint)
-	hint:set_config(self.config)
-	return hint
-end
-
-function M:config_picker(picker)
-	picker:set_config(self.config)
-	return picker
-end
-
 function M._str_to_char_list(str)
 	local char_list = {}
 

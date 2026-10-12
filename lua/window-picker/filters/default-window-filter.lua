@@ -18,7 +18,7 @@ function M:new()
 		o._window_option_filter,
 		o._buffer_options_filter,
 		o._file_path_contains_filter,
-		o._file_path_contains_filter,
+		o._file_name_contains_filter,
 		o._current_window_filter,
 		o._unfocusable_windows_filter,
 	}

@@ -64,15 +64,7 @@ function M:_get_float_win_pos(window)
 end
 
 function M._add_big_char_margin(lines)
-	local max_text_width = 0
 	local centered_lines = {}
-
-	for _, line in ipairs(lines) do
-		local len = utf8.len(line)
-		if max_text_width < len then
-			max_text_width = len
-		end
-	end
 
 	-- top padding
 	table.insert(lines, 1, '')

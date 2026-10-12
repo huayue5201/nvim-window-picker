@@ -18,14 +18,6 @@ function M.tbl_any(tbl, match_func)
 	return false
 end
 
-function M.map_find(tbl, match_func)
-	for key, value in pairs(tbl) do
-		if match_func(key, value) then
-			return { key, value }
-		end
-	end
-end
-
 function M.get_user_input_char(handle_mouse_click)
 	local ok, c = pcall(vim.fn.getchar)
 
@@ -47,20 +39,6 @@ end
 
 function M.clear_prompt()
 	vim.api.nvim_command('normal :esc<CR>')
-end
-
-function M.merge_config(current_config, new_config)
-	if not new_config then
-		return current_config
-	end
-
-	return vim.tbl_deep_extend('force', current_config, new_config)
-end
-
-function M.is_float(window)
-	local config = vim.api.nvim_win_get_config(window)
-
-	return config.relative ~= ''
 end
 
 return M

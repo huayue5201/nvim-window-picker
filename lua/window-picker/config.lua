@@ -1,4 +1,21 @@
 local config = {
+	-- which target sources to collect candidates from. `nvim` is the built in
+	-- source for windows of the current nvim instance. Additional sources
+	-- (for example `herdr`) can be enabled here or registered at runtime with
+	-- require('window-picker').register_source().
+	-- Both list form and map form are accepted:
+	--   sources = { 'nvim', { name = 'herdr', opts = { scope = 'tab' } } }
+	--   sources = { nvim = true, herdr = { scope = 'tab' } }
+	sources = {
+		nvim = true,
+	},
+
+	-- renderers used to draw the selection hints for the collected targets.
+	-- When omitted it is derived from the legacy `hint` option. Targets that
+	-- no renderer supports fall back to the floating list renderer.
+	--   renderers = { 'nvim_statusline_winbar', 'floating_list' }
+	renderers = nil,
+
 	-- type of hints you want to get
 	-- following types are supported
 	-- 'statusline-winbar' | 'floating-big-letter'
