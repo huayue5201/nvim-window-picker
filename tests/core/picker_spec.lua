@@ -187,4 +187,33 @@ describe('core_picker::', function()
 
 		assert.equals(7, picker:pick())
 	end)
+
+	it('returns nil without drawing when a source aborts', function()
+		registry.register_source('aborter', {
+			name = 'aborter',
+			new = function(self)
+				return setmetatable({}, { __index = self })
+			end,
+			available = function()
+				return true
+			end,
+			abort = function()
+				return true
+			end,
+			list = function()
+				error('list should not run after abort')
+			end,
+		})
+
+		local picker = core_picker:new(base_config({
+			sources = { aborter = true },
+			filter_rules = { autoselect_one = true },
+		}))
+
+		local result, abort_info = picker:pick()
+
+		assert.is_nil(result)
+		assert.is_true(abort_info.aborted)
+		assert.equals('aborter', abort_info.source)
+	end)
 end)

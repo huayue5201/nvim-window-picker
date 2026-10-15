@@ -217,6 +217,7 @@ require('window-picker').setup({
     --   sources = { 'nvim', { name = 'herdr', opts = { scope = 'tab' } } }
     --   sources = { nvim = true, herdr = { scope = 'workspace' } }
     -- herdr scope is one of 'tab' | 'workspace' (default) | 'all'
+    -- herdr respect_zoom (scope='tab' only) drops panes hidden by a zoomed tab
     sources = {
         nvim = true,
     },
@@ -227,6 +228,13 @@ require('window-picker').setup({
 ```
 
 When running inside a herdr pane (`HERDR_ENV=1`) you can pick across panes.
+The optional `scope` (`tab` | `workspace` (default) | `all`) and `respect_zoom`
+herdr options control which panes are offered. `respect_zoom` is only honored
+with `scope = 'tab'`: when the pane's tab is zoomed, panes hidden by that zoom
+are dropped from the candidates. If the zoom is on a *different* pane than the
+nvim one, the picker does not open at all, since the nvim pane is hidden and
+there is nothing visible to switch between. Wider scopes target other tabs /
+workspaces, which zoom does not hide, so they ignore `respect_zoom`.
 Because `pick_window()` always returns a plain nvim window id (or `nil`), use
 `pick_target()` when the caller needs to know which tool was picked:
 
@@ -237,26 +245,32 @@ local win = require('window-picker').pick_window({
 })
 
 -- raw target, e.g. { id = 'herdr:wQ:p1', kind = 'herdr', meta = { pane_id = ... } }
-local target = require('window-picker').pick_target({
+-- the second return value is the abort info, e.g. { aborted = true, source = 'herdr' }
+local target, abort_info = require('window-picker').pick_target({
     sources = { 'nvim', { name = 'herdr', opts = { scope = 'workspace' } } },
 })
 if target and target.kind == 'nvim' then
     vim.api.nvim_set_current_win(target.window)
+elseif not target and abort_info then
+    print('picker aborted by ' .. abort_info.source)
 end
 ```
 
 `pick_window()` returns an nvim window id for nvim targets and `nil` for
-external targets (after focusing them). `pick_target()` returns the focused
-target so callers can dispatch on `target.kind`. Keeping `pick_window()`
-nvim-only matters because integrations such as neo-tree's
-`open_with_window_picker` pass the result straight to `nvim_set_current_win`.
+external targets (after focusing them). It never returns the abort info, so it
+stays safe to splat into `nvim_set_current_win(...)`. `pick_target()` returns
+the focused target so callers can dispatch on `target.kind`, plus the abort
+info as a second return value when a source vetoed the pick.
 
 ### Extending
 
 Register your own source or renderer. Sources need
 `available()` and `list(context) -> target[]`; a target is
 `{ id, kind, title?, detail?, window?, focus? }` where `focus` is called as
-`target:focus()` on selection. Renderers need `supports(target)`,
+`target:focus()` on selection. A source may also implement
+`abort(context) -> boolean`; when it returns true the picker closes without
+drawing anything and `pick_target()` reports `{ aborted = true, source = name }`
+as its second return value. Renderers need `supports(target)`,
 `draw(entries, ctx)` and `clear()`.
 
 ```lua

@@ -5,7 +5,7 @@ local config = {
 	-- require('window-picker').register_source().
 	-- Both list form and map form are accepted:
 	--   sources = { 'nvim', { name = 'herdr', opts = { scope = 'tab' } } }
-	--   sources = { nvim = true, herdr = { scope = 'tab' } }
+	--   sources = { nvim = true, herdr = { scope = 'tab', respect_zoom = true } }
 	sources = {
 		nvim = true,
 	},

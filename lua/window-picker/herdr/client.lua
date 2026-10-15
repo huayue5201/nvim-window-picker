@@ -125,6 +125,18 @@ function M.pane_list(opts)
 	return result.panes
 end
 
+---@param opts table|nil { pane_id = string }
+---@return table|nil layout PaneLayoutSnapshot of the pane's tab
+---@return string|nil error
+function M.pane_layout(opts)
+	local result, err = M.call('pane.layout', opts or {})
+	if not result then
+		return nil, err
+	end
+
+	return result.layout
+end
+
 ---@param pane_id string
 ---@return boolean
 ---@return string|nil error

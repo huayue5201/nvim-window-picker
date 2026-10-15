@@ -4,7 +4,7 @@ local M = {}
 
 M.name = 'herdr'
 
----@param opts table|nil { scope = 'workspace'|'tab'|'all' }
+---@param opts table|nil { scope = 'workspace'|'tab'|'all', respect_zoom = boolean }
 ---@param config table
 function M:new(opts, config)
 	local o = setmetatable({
@@ -13,6 +13,9 @@ function M:new(opts, config)
 	}, { __index = self })
 
 	o.scope = o.opts.scope or 'workspace'
+	-- respect_zoom only makes sense with scope = 'tab': zoom hides the other
+	-- panes of the current tab, which is exactly the tab scope's candidate set.
+	o.respect_zoom = o.opts.respect_zoom == true and o.scope == 'tab'
 
 	return o
 end
@@ -77,6 +80,58 @@ function M:_in_scope(pane, workspace_id, tab_id)
 	return pane.workspace_id == workspace_id
 end
 
+---drop panes that are hidden by a zoomed tab. zoom is a per-tab property,
+---so panes of other tabs stay visible and remain candidates.
+---@param panes table[]
+---@param layout table|nil PaneLayoutSnapshot
+---@return table[]
+function M._visible_in_zoom(panes, layout)
+	if not layout or not layout.zoomed then
+		return panes
+	end
+
+	local visible = {}
+	for _, pane in ipairs(panes) do
+		if
+			pane.tab_id ~= layout.tab_id
+			or pane.pane_id == layout.focused_pane_id
+		then
+			visible[#visible + 1] = pane
+		end
+	end
+
+	return visible
+end
+
+---layout of the tab holding nvim's own pane, cached per picker instance.
+---@return table|nil layout
+---@return string|nil error
+function M:_layout()
+	if not self._layout_cache then
+		self._layout_cache =
+			{ client.pane_layout({ pane_id = vim.env.HERDR_PANE_ID }) }
+	end
+
+	return self._layout_cache[1], self._layout_cache[2]
+end
+
+---stop the picker entirely when nvim's own pane is hidden behind another
+---pane's zoom: there is nothing visible left to switch between.
+---@param _context table|nil
+---@return boolean
+function M:abort(_context)
+	if not self.respect_zoom then
+		return false
+	end
+
+	local layout = self:_layout()
+	if not layout or not layout.zoomed then
+		return false
+	end
+
+	return layout.focused_pane_id ~= vim.env.HERDR_PANE_ID
+end
+
 ---@return table[]
 function M:list()
 	local panes, err = client.pane_list({})
@@ -93,6 +148,18 @@ function M:list()
 	local current_pane = vim.env.HERDR_PANE_ID
 	local workspace_id = vim.env.HERDR_WORKSPACE_ID
 	local tab_id = vim.env.HERDR_TAB_ID
+
+	if self.respect_zoom then
+		local layout, layout_err = self:_layout()
+		if layout then
+			panes = M._visible_in_zoom(panes, layout)
+		elseif layout_err then
+			vim.notify(
+				'window-picker: herdr pane layout failed: ' .. layout_err,
+				vim.log.levels.WARN
+			)
+		end
+	end
 
 	local candidates = {}
 	for _, pane in ipairs(panes) do

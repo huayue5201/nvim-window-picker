@@ -74,6 +74,12 @@ function M:draw(entries)
 
 	self.win = win
 	self.buf = buf
+
+	-- floating windows are not flushed to the terminal on their own; without
+	-- this redraw the list can stay invisible until the next screen update
+	-- (it then only flashes when a key is pressed). the hint renderers redraw
+	-- too, but they are not used for non-nvim targets.
+	vim.cmd.redraw()
 end
 
 function M:clear()

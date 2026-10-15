@@ -8,20 +8,28 @@ local M = {}
 ---@param custom_config table|nil
 ---@return number|nil window id or nil
 function M.pick_window(custom_config)
-	return M._pick(custom_config)
+	-- drop the abort_info second return value: callers commonly forward the
+	-- result straight into nvim_set_current_win(...), where a splatted second
+	-- argument would be an error.
+	local window = M._pick(custom_config)
+	return window
 end
 
 ---pick any target (nvim window or external pane) and return it. the target is
 ---already focused as a side effect. callers can dispatch on `target.kind`.
+---when the pick is aborted by a source (e.g. herdr zoom hiding nvim), the
+---second return value is `{ aborted = true, source = 'herdr' }`.
 ---@param custom_config table|nil
 ---@return table|nil target
+---@return table|nil abort_info
 function M.pick_target(custom_config)
 	return M._pick(custom_config, true)
 end
 
 ---@param custom_config table|nil
 ---@param return_target boolean|nil
----@return number|table|nil
+---@return number|table|nil result
+---@return table|nil abort_info
 function M._pick(custom_config, return_target)
 	local config = dconfig
 

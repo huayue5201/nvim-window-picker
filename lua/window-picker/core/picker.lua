@@ -138,6 +138,7 @@ function M:new(config, context)
 end
 
 ---@return table[] targets
+---@return string|nil abort_source source name that aborted, if any
 function M:_collect()
 	local targets = {}
 	local seen = {}
@@ -145,6 +146,14 @@ function M:_collect()
 	for _, source in ipairs(self.sources) do
 		local ok, available = pcall(source.available, source)
 		if ok and available then
+			if source.abort then
+				local ok_abort, abort =
+					pcall(source.abort, source, self.context)
+				if ok_abort and abort then
+					return targets, source.name or 'unknown'
+				end
+			end
+
 			local ok_list, list = pcall(source.list, source, self.context)
 			if ok_list and list then
 				for _, target in ipairs(list) do
@@ -157,7 +166,7 @@ function M:_collect()
 		end
 	end
 
-	return targets
+	return targets, nil
 end
 
 ---@return table|nil
@@ -211,9 +220,14 @@ function M._result(entry, return_target)
 	return nil
 end
 
----@return number|table|nil
+---@return number|table|nil result
+---@return table|nil abort_info { aborted = true, source = string }
 function M:pick()
-	local targets = self:_collect()
+	local targets, abort_source = self:_collect()
+	if abort_source then
+		return nil, { aborted = true, source = abort_source }
+	end
+
 	local entries = chars.assign(targets, self.config.chars or {})
 
 	if #entries == 0 then
