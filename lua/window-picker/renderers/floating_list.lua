@@ -99,10 +99,9 @@ end
 
 ---@param entries table[]
 function M:draw(entries)
-	local ui = (self.config.picker_config or {}).floating_list or {}
-	local padding = ui.label_padding or 1
+	local ui = self.config.picker_config.floating_list
 
-	local lines, labels = build_lines(entries, padding)
+	local lines, labels = build_lines(entries, ui.label_padding)
 
 	local width = 1
 	for _, line in ipairs(lines) do
@@ -111,19 +110,14 @@ function M:draw(entries)
 
 	local max_height = math.max(vim.o.lines - vim.o.cmdheight - 1, 1)
 	local height = math.max(math.min(#lines, max_height), 1)
-	local row, col = position_window(
-		ui.position or 'middle-right',
-		width,
-		height,
-		ui.offset_x or 0,
-		ui.offset_y or 0
-	)
+	local row, col =
+		position_window(ui.position, width, height, ui.offset_x, ui.offset_y)
 
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.bo[buf].modifiable = false
 
-	local label_hl = ui.label_hl or 'DiagnosticVirtualTextHint'
+	local label_hl = ui.label_hl
 	for _, label in ipairs(labels) do
 		vim.api.nvim_buf_add_highlight(
 			buf,
@@ -142,14 +136,13 @@ function M:draw(entries)
 		width = width,
 		height = height,
 		style = 'minimal',
-		border = ui.border or 'none',
+		border = ui.border,
 		focusable = false,
 		noautocmd = true,
 		zindex = 250,
 	})
 
-	vim.wo[win].winhighlight = 'Normal:'
-		.. (ui.window_bg or 'WindowPickerWindow')
+	vim.wo[win].winhighlight = 'Normal:' .. ui.window_bg
 
 	self.win = win
 	self.buf = buf
