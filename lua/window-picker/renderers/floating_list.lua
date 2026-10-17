@@ -21,41 +21,119 @@ function M.supports()
 	return true
 end
 
----@param entries table[]
-function M:draw(entries)
-	local lines = {}
+---@param position string
+---@param width number
+---@param height number
+---@param offset_x number
+---@param offset_y number
+---@return number row
+---@return number col
+local function position_window(position, width, height, offset_x, offset_y)
+	local editor_height = vim.o.lines - vim.o.cmdheight
 
-	for _, entry in ipairs(entries) do
+	local row
+	if position:match('^top') then
+		row = offset_y
+	elseif position:match('^bottom') then
+		row = editor_height - height - offset_y
+	else
+		row = math.floor((editor_height - height) / 2) + offset_y
+	end
+
+	local col
+	if position:match('left$') then
+		col = offset_x
+	elseif position == 'center' then
+		col = math.floor((vim.o.columns - width) / 2) + offset_x
+	else
+		col = vim.o.columns - width - offset_x
+	end
+
+	return math.max(row, 0), math.max(col, 0)
+end
+
+---build one line per entry: `<info> <label>`, info left aligned, label right
+---aligned. also returns the byte columns of every label so they can be
+---highlighted without re-deriving them.
+---@param entries table[]
+---@param padding number
+---@return string[] lines
+---@return table[] labels { row = number, start_col = number, end_col = number }
+local function build_lines(entries, padding)
+	local infos, info_width = {}, 0
+
+	for i, entry in ipairs(entries) do
 		local target = entry.target
-		local line = ('%s  %s'):format(entry.char, target.title or target.id)
+		local info = target.title or target.id
 		if
 			target.detail
 			and target.detail ~= ''
 			and target.detail ~= target.title
 		then
-			line = line .. '  ' .. target.detail
+			info = info .. '  ' .. target.detail
 		end
-		lines[#lines + 1] = line
+		infos[i] = info
+		info_width = math.max(info_width, vim.fn.strdisplaywidth(info))
 	end
 
-	local width = 24
+	local lines, labels = {}, {}
+	local side = (' '):rep(padding)
+
+	for i, entry in ipairs(entries) do
+		local info = infos[i]
+		local gap = info_width - vim.fn.strdisplaywidth(info)
+		local line = side .. info .. (' '):rep(gap + padding)
+
+		local start_col = #line
+		line = line .. entry.char .. side
+		lines[i] = line
+		labels[i] = {
+			row = i - 1,
+			start_col = start_col,
+			end_col = start_col + #entry.char,
+		}
+	end
+
+	return lines, labels
+end
+
+---@param entries table[]
+function M:draw(entries)
+	local ui = (self.config.picker_config or {}).floating_list or {}
+	local padding = ui.label_padding or 1
+
+	local lines, labels = build_lines(entries, padding)
+
+	local width = 1
 	for _, line in ipairs(lines) do
 		width = math.max(width, vim.fn.strdisplaywidth(line))
 	end
-	width = math.min(width + 2, math.max(vim.o.columns - 4, 10))
-	local height = math.max(math.min(#lines, vim.o.lines - 4), 1)
+
+	local max_height = math.max(vim.o.lines - vim.o.cmdheight - 1, 1)
+	local height = math.max(math.min(#lines, max_height), 1)
+	local row, col = position_window(
+		ui.position or 'middle-right',
+		width,
+		height,
+		ui.offset_x or 0,
+		ui.offset_y or 0
+	)
 
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.bo[buf].modifiable = false
 
-	for i in ipairs(lines) do
-		local char_len = #entries[i].char
-		vim.api.nvim_buf_add_highlight(buf, ns, 'Title', i - 1, 0, char_len)
+	local label_hl = ui.label_hl or 'DiagnosticVirtualTextHint'
+	for _, label in ipairs(labels) do
+		vim.api.nvim_buf_add_highlight(
+			buf,
+			ns,
+			label_hl,
+			label.row,
+			label.start_col,
+			label.end_col
+		)
 	end
-
-	local row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1)
-	local col = math.max(0, math.floor((vim.o.columns - width) / 2))
 
 	local win = vim.api.nvim_open_win(buf, false, {
 		relative = 'editor',
@@ -64,13 +142,14 @@ function M:draw(entries)
 		width = width,
 		height = height,
 		style = 'minimal',
-		border = 'rounded',
-		title = ' Pick ',
-		title_pos = 'center',
+		border = ui.border or 'none',
 		focusable = false,
 		noautocmd = true,
 		zindex = 250,
 	})
+
+	vim.wo[win].winhighlight = 'Normal:'
+		.. (ui.window_bg or 'WindowPickerWindow')
 
 	self.win = win
 	self.buf = buf

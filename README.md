@@ -95,6 +95,32 @@ require 'window-picker'.setup({
 
             font = 'ansi-shadow', -- ansi-shadow |
         },
+
+        -- configuration for the floating list renderer (also the fallback for
+        -- non-nvim targets such as herdr panes)
+        floating_list = {
+            -- where the list floats. one of 'top-left' | 'top-right',
+            -- 'middle-left' | 'middle-right', 'bottom-left' | 'bottom-right',
+            -- or 'center'
+            position = 'middle-right',
+
+            -- offset from the chosen edge, in cells
+            offset_x = 0,
+            offset_y = 0,
+
+            -- window border, see :h winborder
+            border = 'none', -- 'none' | 'single' | 'rounded' | ...
+
+            -- spaces around the selection char and between it and the info
+            label_padding = 1,
+
+            -- highlight group for the selection char
+            label_hl = 'DiagnosticVirtualTextHint',
+
+            -- highlight group painted behind the list. 'WindowPickerWindow'
+            -- is defined with bg=NONE so the list blends into the editor
+            window_bg = 'WindowPickerWindow',
+        },
     },
 
     -- whether to show 'Pick window:' prompt

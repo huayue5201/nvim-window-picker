@@ -85,6 +85,10 @@ function M.setup(opts)
 	--	IF pick_window({highlights}) has highlight config
 	--		EXPECTED to override only the passed highlights ONLY
 
+	-- backdrop for the floating list renderer. bg=NONE lets it blend into the
+	-- editor instead of painting an opaque NormalFloat rectangle.
+	M._create_hl_if_not_exists('WindowPickerWindow', { bg = 'NONE' })
+
 	if not dconfig.highlights.enabled then
 		return
 	end
