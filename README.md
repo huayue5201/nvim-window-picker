@@ -97,7 +97,7 @@ require 'window-picker'.setup({
         },
 
         -- configuration for the floating list renderer (also the fallback for
-        -- non-nvim targets such as herdr panes)
+        -- non-nvim targets such as herdr panes / ghostty terminals)
         floating_list = {
             -- where the list floats. one of 'top-left' | 'top-right',
             -- 'middle-left' | 'middle-right', 'bottom-left' | 'bottom-right',
@@ -227,6 +227,7 @@ Built in sources:
 | --- | --- |
 | `nvim` | windows of the current nvim instance |
 | `herdr` | panes of the [herdr](https://herdr.dev) session the nvim runs in |
+| `ghostty` | terminals of the [Ghostty](https://ghostty.org) app (macOS only) |
 
 Built in renderers:
 
@@ -244,6 +245,7 @@ require('window-picker').setup({
     --   sources = { nvim = true, herdr = { scope = 'workspace' } }
     -- herdr scope is one of 'tab' | 'workspace' (default) | 'all'
     -- herdr respect_zoom (scope='tab' only) drops panes hidden by a zoomed tab
+    -- ghostty scope is one of 'tab' | 'window' | 'all' (default)
     sources = {
         nvim = true,
     },
@@ -261,6 +263,28 @@ are dropped from the candidates. If the zoom is on a *different* pane than the
 nvim one, the picker does not open at all, since the nvim pane is hidden and
 there is nothing visible to switch between. Wider scopes target other tabs /
 workspaces, which zoom does not hide, so they ignore `respect_zoom`.
+
+On macOS, the `ghostty` source drives Ghostty through its AppleScript
+dictionary, so nvim can jump to terminals living in other Ghostty windows and
+tabs:
+
+```lua
+require('window-picker').setup({
+    sources = {
+        nvim = true,
+        ghostty = { scope = 'all' },
+    },
+})
+```
+
+`scope` is `tab` (splits of the nvim tab), `window` (terminals of the nvim
+window) or `all` (default, every Ghostty window). The terminal id of a surface
+is not exported to the processes running inside it, so the nvim terminal is
+detected by matching its process cwd (and title, when several surfaces share
+the cwd) and is left out of the candidates. `scope = 'tab'` / `'window'` fall
+back to `all` when that detection is ambiguous. The GTK build of Ghostty has
+no scripting dictionary, so this source is a no-op outside macOS.
+
 Because `pick_window()` always returns a plain nvim window id (or `nil`), use
 `pick_target()` when the caller needs to know which tool was picked:
 
