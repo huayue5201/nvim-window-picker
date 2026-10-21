@@ -16,6 +16,46 @@ local function terminal(overrides)
 end
 
 describe('ghostty source::', function()
+	local real_current_surface = client.current_surface
+
+	before_each(function()
+		client.current_surface = function()
+			return nil
+		end
+	end)
+
+	after_each(function()
+		client.current_surface = real_current_surface
+	end)
+
+	it(
+		'prefers the focused terminal of the frontmost ghostty window',
+		function()
+			local self = terminal({ tab_id = 'tab-9', window_id = 'win-9' })
+			local sibling = terminal({ terminal_id = 'sibling' })
+
+			client.current_surface = function()
+				return {
+					window_id = 'win-9',
+					tab_id = 'tab-9',
+					terminal_id = 'term',
+				}
+			end
+
+			assert.equals(self, ghostty._current({ sibling, self }))
+		end
+	)
+
+	it('falls back to cwd when ghostty is not frontmost', function()
+		local self = terminal()
+
+		client.current_surface = function()
+			return { window_id = 'x', tab_id = 'x', terminal_id = 'not-listed' }
+		end
+
+		assert.equals(self, ghostty._current({ self }))
+	end)
+
 	it('defaults to scope=all', function()
 		assert.equals('all', ghostty:new({}, {}).scope)
 		assert.equals('tab', ghostty:new({ scope = 'tab' }, {}).scope)
@@ -72,6 +112,10 @@ describe('ghostty source::', function()
 
 		local all = ghostty:new({}, {})
 		assert.is_true(all:_in_scope(far, nil))
+
+		-- an unknown current surface must not leak other tabs/windows in
+		assert.is_false(tab:_in_scope(same_tab, nil))
+		assert.is_false(win:_in_scope(same_win, nil))
 	end)
 
 	it('falls back through title, tab, window and cwd for the title', function()
@@ -139,11 +183,31 @@ describe('ghostty source::', function()
 			client.list_terminals = function()
 				return { self, same_tab, other_tab }
 			end
+			client.current_surface = function()
+				return {
+					window_id = self.window_id,
+					tab_id = self.tab_id,
+					terminal_id = self.terminal_id,
+				}
+			end
 
 			local targets = ghostty:new({ scope = 'tab' }, {}):list()
 
 			assert.equals(1, #targets)
 			assert.equals('ghostty:same-tab', targets[1].id)
+		end)
+
+		it('lists nothing when the current terminal is unknown', function()
+			local a = terminal({ terminal_id = 'a', cwd = '/tmp/one' })
+			local b = terminal({ terminal_id = 'b', cwd = '/tmp/two' })
+
+			client.list_terminals = function()
+				return { a, b }
+			end
+
+			local targets = ghostty:new({ scope = 'tab' }, {}):list()
+
+			assert.equals(0, #targets)
 		end)
 
 		it('returns no target when the list fails', function()

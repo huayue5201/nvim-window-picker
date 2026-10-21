@@ -33,6 +33,25 @@ end tell
 return out
 ]]
 
+-- the surface that has keyboard focus while ghostty is the frontmost app. when
+-- nvim runs inside ghostty, the keys that <leader>ww was typed with went to the
+-- focused terminal of the selected tab, so this is the surface nvim lives in.
+local CURRENT_SCRIPT = [[
+set us to (ASCII character 31)
+if application "Ghostty" is not running then return ""
+tell application "Ghostty"
+	if not (frontmost) then return ""
+	try
+		set w to front window
+		set t to selected tab of w
+		set term to focused terminal of t
+		return (id of w) & us & (id of t) & us & (id of term)
+	on error
+		return ""
+	end try
+end tell
+]]
+
 ---run an applescript and return its stdout.
 ---@param script string
 ---@return string|nil output
@@ -116,6 +135,27 @@ function M.list_terminals()
 	end
 
 	return terminals
+end
+
+---the terminal surface nvim most likely runs in, or nil when ghostty is not the
+---frontmost app or the script fails.
+---@return table|nil { window_id, tab_id, terminal_id }
+function M.current_surface()
+	local out = M._run(CURRENT_SCRIPT)
+	if not out then
+		return nil
+	end
+
+	local fields = vim.split((out:gsub('%s+$', '')), us, { plain = true })
+	if #fields ~= 3 or fields[1] == '' or fields[3] == '' then
+		return nil
+	end
+
+	return {
+		window_id = fields[1],
+		tab_id = fields[2],
+		terminal_id = fields[3],
+	}
 end
 
 ---@param value string

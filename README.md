@@ -277,13 +277,17 @@ require('window-picker').setup({
 })
 ```
 
-`scope` is `tab` (splits of the nvim tab), `window` (terminals of the nvim
-window) or `all` (default, every Ghostty window). The terminal id of a surface
-is not exported to the processes running inside it, so the nvim terminal is
-detected by matching its process cwd (and title, when several surfaces share
-the cwd) and is left out of the candidates. `scope = 'tab'` / `'window'` fall
-back to `all` when that detection is ambiguous. The GTK build of Ghostty has
-no scripting dictionary, so this source is a no-op outside macOS.
+`scope` is `tab` (splits of the tab nvim runs in), `window` (terminals of that
+Ghostty window) or `all` (default, every Ghostty window and tab). The terminal
+id of a surface is not exported to the processes running inside it, so the nvim
+terminal is detected as follows: while Ghostty is the frontmost app, the focused
+terminal of the selected tab of the front window is nvim's surface (that is
+where the keystroke came from); otherwise the process cwd is matched and the
+terminal title breaks ties. The detected surface itself is always left out of
+the candidates. When detection fails, `scope = 'tab'` / `'window'` yield no
+candidates (with a warning) instead of falling back to `all`, so a narrow scope
+never pulls in other tabs or windows. The GTK build of Ghostty has no scripting
+dictionary, so this source is a no-op outside macOS.
 
 Because `pick_window()` always returns a plain nvim window id (or `nil`), use
 `pick_target()` when the caller needs to know which tool was picked:

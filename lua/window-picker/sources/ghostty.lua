@@ -55,13 +55,25 @@ local function own_titles()
 	return titles
 end
 
----best effort detection of the terminal surface nvim runs in: ghostty does not
----export a surface id, so match on the process cwd. when several surfaces share
----the cwd, the terminal title is used to break the tie. when that is still
----ambiguous nil is returned.
+---best effort detection of the terminal surface nvim runs in.
+---
+---ghostty does not export a surface id to the processes it runs, so:
+---1. when ghostty is frontmost, the focused terminal of the selected tab of the
+---   front window is the surface the keystroke came from, i.e. nvim's terminal;
+---2. otherwise match on the process cwd, breaking ties with the terminal title;
+---3. when that is still ambiguous nil is returned.
 ---@param terminals table[]
 ---@return table|nil
 function M._current(terminals)
+	local front = client.current_surface()
+	if front then
+		for _, terminal in ipairs(terminals) do
+			if terminal.terminal_id == front.terminal_id then
+				return terminal
+			end
+		end
+	end
+
 	local cwd = normalize_dir(uv.cwd())
 	if not cwd then
 		return nil
@@ -104,8 +116,14 @@ end
 ---@param current table|nil
 ---@return boolean
 function M:_in_scope(terminal, current)
-	if self.scope == 'all' or not current then
+	if self.scope == 'all' then
 		return true
+	end
+
+	-- a narrower scope must not leak other tabs/windows in, so an unknown
+	-- current surface means nothing is in scope
+	if not current then
+		return false
 	end
 
 	if self.scope == 'tab' then
@@ -162,6 +180,17 @@ function M:list()
 	end
 
 	local current = M._current(terminals)
+
+	if not current and self.scope ~= 'all' then
+		vim.notify(
+			'window-picker: ghostty cannot tell which terminal nvim runs in, '
+				.. 'scope = "'
+				.. self.scope
+				.. '" matches nothing',
+			vim.log.levels.WARN
+		)
+		return {}
+	end
 
 	-- nearest first: current tab, then current window, then the rest
 	local function rank(terminal)
