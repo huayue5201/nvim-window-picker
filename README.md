@@ -289,6 +289,23 @@ candidates (with a warning) instead of falling back to `all`, so a narrow scope
 never pulls in other tabs or windows. The GTK build of Ghostty has no scripting
 dictionary, so this source is a no-op outside macOS.
 
+Because every AppleScript query is a separate IPC round trip, the terminal list
+is cached and refreshed in the background (`CursorHold`, `WinNew`, `TabEnter`,
+`FocusGained`, and again while a pick is waiting for its selection char), so
+opening the picker normally costs nothing. `cache_ttl` (milliseconds, default
+`5000`) is how long a cached snapshot may be reused when no prefetch happened in
+the meantime — a longer value trades a little staleness for fewer blocking
+round trips:
+
+```lua
+require('window-picker').setup({
+    sources = {
+        nvim = true,
+        ghostty = { scope = 'tab', cache_ttl = 5000 },
+    },
+})
+```
+
 Because `pick_window()` always returns a plain nvim window id (or `nil`), use
 `pick_target()` when the caller needs to know which tool was picked:
 

@@ -60,10 +60,71 @@ function M.register_renderer(name, factory)
 	registry.register_renderer(name, factory)
 end
 
+---arm background prefetch for every source that supports it, so slow sources
+---(ghostty's apple-script round trip) have their cache warm before the picker
+---is ever opened.
+---@param config table
+local function arm_source_prefetch(config)
+	local sources = config.sources
+	if type(sources) ~= 'table' then
+		return
+	end
+
+	local function arm(name, opts)
+		if type(name) ~= 'string' then
+			return
+		end
+
+		if type(opts) ~= 'table' then
+			opts = {}
+		end
+
+		if opts.enabled == false then
+			return
+		end
+
+		local factory = registry.source_factory({ name = name })
+		if not factory or type(factory.prefetch) ~= 'function' then
+			return
+		end
+
+		if type(factory.available) == 'function' then
+			local ok, available = pcall(factory.available, factory)
+			if not ok or not available then
+				return
+			end
+		end
+
+		pcall(factory.prefetch, factory, opts)
+	end
+
+	local islist = vim.islist or vim.tbl_islist
+
+	if islist(sources) then
+		for _, value in ipairs(sources) do
+			if type(value) == 'string' then
+				arm(value, {})
+			elseif type(value) == 'table' then
+				arm(value.name or value[1], value.opts)
+			end
+		end
+
+		return
+	end
+
+	for name, value in pairs(sources) do
+		if value then
+			arm(name, value)
+		end
+	end
+end
+
 function M.setup(opts)
 	if opts then
 		dconfig = vim.tbl_deep_extend('force', dconfig, opts)
 	end
+
+	pcall(arm_source_prefetch, dconfig)
 
 	-- Setting highlights at global level
 	-- highlight config is deleted so hint classes will only receive the

@@ -6,7 +6,7 @@ local M = {}
 
 M.name = 'ghostty'
 
----@param opts table|nil { scope = 'window'|'tab'|'all' }
+---@param opts table|nil { scope = 'window'|'tab'|'all', cache_ttl = number }
 ---@param config table
 function M:new(opts, config)
 	local o = setmetatable({
@@ -17,6 +17,52 @@ function M:new(opts, config)
 	o.scope = o.opts.scope or 'all'
 
 	return o
+end
+
+---snapshot options handed to the ghostty client
+function M:_read_opts()
+	return {
+		scope = self.scope,
+		ttl = self.opts and self.opts.cache_ttl or nil,
+	}
+end
+
+local armed = false
+
+---keep the client's snapshot cache warm so the next pick does not pay for the
+---apple-script round trip. cheap to call repeatedly: refreshes are debounced
+---and coalesced inside the client.
+---@param opts table|nil { scope = 'tab'|'window'|'all', cache_ttl = number }
+function M.prefetch(opts)
+	opts = opts or {}
+	local read_opts = { scope = opts.scope or 'all', ttl = opts.cache_ttl }
+	local prefetch_opts = {
+		scope = read_opts.scope,
+		min_age = client.prefetch_age,
+	}
+
+	client.refresh(prefetch_opts)
+
+	if armed or not vim.api or not vim.api.nvim_create_autocmd then
+		return
+	end
+	armed = true
+
+	local group = vim.api.nvim_create_augroup('WindowPickerGhostty', {
+		clear = true,
+	})
+
+	-- CursorHold(I) fires once per idle pause, which is exactly the moment
+	-- before a key sequence like <leader>ww gets typed.
+	vim.api.nvim_create_autocmd(
+		{ 'CursorHold', 'CursorHoldI', 'WinNew', 'TabEnter', 'FocusGained' },
+		{
+			group = group,
+			callback = function()
+				client.refresh(prefetch_opts)
+			end,
+		}
+	)
 end
 
 ---the ghostty source is only usable when ghostty is scriptable, which is
@@ -64,8 +110,8 @@ end
 ---3. when that is still ambiguous nil is returned.
 ---@param terminals table[]
 ---@return table|nil
-function M._current(terminals)
-	local front = client.current_surface()
+function M._current(terminals, opts)
+	local front = client.current_surface(opts)
 	if front then
 		for _, terminal in ipairs(terminals) do
 			if terminal.terminal_id == front.terminal_id then
@@ -168,7 +214,10 @@ end
 
 ---@return table[]
 function M:list()
-	local terminals, err = client.list_terminals()
+	M.prefetch(self.opts)
+
+	local read_opts = self:_read_opts()
+	local terminals, err = client.list_terminals(read_opts)
 	if not terminals then
 		if err then
 			vim.notify(
@@ -179,7 +228,7 @@ function M:list()
 		return {}
 	end
 
-	local current = M._current(terminals)
+	local current = M._current(terminals, read_opts)
 
 	if not current and self.scope ~= 'all' then
 		vim.notify(

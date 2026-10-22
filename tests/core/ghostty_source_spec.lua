@@ -253,3 +253,81 @@ describe('ghostty client::', function()
 		assert.is_nil(client._parse('too' .. string.char(31) .. 'short'))
 	end)
 end)
+
+describe('ghostty client snapshot::', function()
+	local us = string.char(31)
+	local rs = string.char(30)
+
+	local function record(fields)
+		return table.concat(fields, us)
+	end
+
+	local real_run = client._run
+
+	after_each(function()
+		client._run = real_run
+		client._clear_cache()
+	end)
+
+	it('parses terminals and the current surface marker', function()
+		local out = table.concat({
+			record({ 'cur', 'win-1', 'tab-1', 'term-1' }),
+			record({
+				'win-1',
+				'window',
+				'tab-1',
+				'tab',
+				'1',
+				'true',
+				'term-1',
+				'nvim',
+				'/tmp',
+			}),
+		}, rs)
+
+		local terminals, current = client._parse_snapshot(out)
+
+		assert.equals(1, #terminals)
+		assert.equals('term-1', terminals[1].terminal_id)
+		assert.same({
+			window_id = 'win-1',
+			tab_id = 'tab-1',
+			terminal_id = 'term-1',
+		}, current)
+	end)
+
+	it('has no current surface when the marker is missing', function()
+		local terminals, current = client._parse_snapshot('')
+
+		assert.equals(0, #terminals)
+		assert.is_nil(current)
+	end)
+
+	it('serves repeated reads from the cache', function()
+		local calls = 0
+		client._run = function()
+			calls = calls + 1
+			return table.concat({
+				record({ 'cur', 'win-1', 'tab-1', 'term-1' }),
+				record({
+					'win-1',
+					'window',
+					'tab-1',
+					'tab',
+					'1',
+					'true',
+					'term-9',
+					'other',
+					'/tmp',
+				}),
+			}, rs)
+		end
+
+		local first = client.list_terminals({ scope = 'tab' })
+		local second = client.list_terminals({ scope = 'tab' })
+
+		assert.equals(1, calls)
+		assert.equals(1, #first)
+		assert.same(first, second)
+	end)
+end)

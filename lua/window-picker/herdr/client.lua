@@ -25,6 +25,12 @@ function M.call(method, params, timeout)
 	end
 
 	local path = M.socket_path()
+
+	-- without a socket every call burns the full timeout; fail immediately so a
+	-- stale HERDR_ENV cannot stall the picker.
+	if uv.fs_stat and not uv.fs_stat(path) then
+		return nil, 'herdr socket not found: ' .. path
+	end
 	local ok_json, payload = pcall(vim.json.encode, {
 		id = 'window-picker:' .. tostring(counter),
 		method = method,
@@ -96,7 +102,7 @@ function M.call(method, params, timeout)
 		finish()
 	end)
 
-	vim.wait(timeout or 1500, function()
+	vim.wait(timeout or 800, function()
 		return done
 	end, 5)
 
