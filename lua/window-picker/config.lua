@@ -1,12 +1,13 @@
 local config = {
 	-- which target sources to collect candidates from. `nvim` is the built in
 	-- source for windows of the current nvim instance. Additional sources
-	-- (for example `herdr` or `ghostty`) can be enabled here or registered at
+	-- (for example `herdr`, `ghostty` or `rex`) can be enabled here or registered at
 	-- runtime with require('window-picker').register_source().
 	-- Both list form and map form are accepted:
 	--   sources = { 'nvim', { name = 'herdr', opts = { scope = 'tab' } } }
 	--   sources = { nvim = true, herdr = { scope = 'tab', respect_zoom = true } }
 	--   sources = { nvim = true, ghostty = { scope = 'all' } }
+	--   sources = { nvim = true, rex = { scope = 'window' } }
 	sources = {
 		nvim = true,
 	},

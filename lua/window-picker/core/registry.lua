@@ -7,6 +7,7 @@ local SOURCE_MODULES = {
 	nvim = 'window-picker.sources.nvim',
 	herdr = 'window-picker.sources.herdr',
 	ghostty = 'window-picker.sources.ghostty',
+	rex = 'window-picker.sources.rex',
 }
 
 local RENDERER_MODULES = {

@@ -97,7 +97,7 @@ require 'window-picker'.setup({
         },
 
         -- configuration for the floating list renderer (also the fallback for
-        -- non-nvim targets such as herdr panes / ghostty terminals)
+        -- non-nvim targets such as herdr panes / ghostty terminals / rex blocks)
         floating_list = {
             -- where the list floats. one of 'top-left' | 'top-right',
             -- 'middle-left' | 'middle-right', 'bottom-left' | 'bottom-right',
@@ -228,6 +228,7 @@ Built in sources:
 | `nvim` | windows of the current nvim instance |
 | `herdr` | panes of the [herdr](https://herdr.dev) session the nvim runs in |
 | `ghostty` | terminals of the [Ghostty](https://ghostty.org) app (macOS only) |
+| `rex` | blocks (panes) of the [Rex](https://rex.dev) session the nvim runs in |
 
 Built in renderers:
 
@@ -246,6 +247,8 @@ require('window-picker').setup({
     -- herdr scope is one of 'tab' | 'workspace' (default) | 'all'
     -- herdr respect_zoom (scope='tab' only) drops panes hidden by a zoomed tab
     -- ghostty scope is one of 'tab' | 'window' | 'all' (default)
+    -- rex scope is one of 'window' (default) | 'session'
+    -- rex respect_zoom (scope='window' only) drops blocks hidden by a zoomed block
     sources = {
         nvim = true,
     },
@@ -305,6 +308,28 @@ require('window-picker').setup({
     },
 })
 ```
+
+When running inside a Rex block (`REX_SESSION` / `REX_BLOCK` are set) the `rex`
+source offers the other blocks of the same session. `scope` is `window`
+(default, the other panes of the Rex window nvim runs in) or `session` (every
+Rex window, which is useful when the editor and its shells live in different
+windows). Titles come from each block's foreground program and details from its
+working directory, both read through `rex api call` and cached, so opening the
+picker is cheap:
+
+```lua
+require('window-picker').setup({
+    sources = {
+        nvim = true,
+        rex = { scope = 'session' },
+    },
+})
+```
+
+As with herdr, `respect_zoom` (default on, only honored with `scope = 'window'`)
+drops blocks hidden by a zoomed sibling and aborts the pick when nvim itself is
+the hidden one. The `rex` binary is resolved from `REX_BIN`, then
+`REX_BIN_DIR/rex`, then `$PATH`.
 
 Because `pick_window()` always returns a plain nvim window id (or `nil`), use
 `pick_target()` when the caller needs to know which tool was picked:
