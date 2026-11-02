@@ -97,7 +97,7 @@ require 'window-picker'.setup({
         },
 
         -- configuration for the floating list renderer (also the fallback for
-        -- non-nvim targets such as herdr panes / ghostty terminals / rex blocks)
+        -- non-nvim targets such as herdr panes / rex blocks)
         floating_list = {
             -- where the list floats. one of 'top-left' | 'top-right',
             -- 'middle-left' | 'middle-right', 'bottom-left' | 'bottom-right',
@@ -227,7 +227,6 @@ Built in sources:
 | --- | --- |
 | `nvim` | windows of the current nvim instance |
 | `herdr` | panes of the [herdr](https://herdr.dev) session the nvim runs in |
-| `ghostty` | terminals of the [Ghostty](https://ghostty.org) app (macOS only) |
 | `rex` | blocks (panes) of the [Rex](https://rex.dev) session the nvim runs in |
 
 Built in renderers:
@@ -246,7 +245,6 @@ require('window-picker').setup({
     --   sources = { nvim = true, herdr = { scope = 'workspace' } }
     -- herdr scope is one of 'tab' | 'workspace' (default) | 'all'
     -- herdr respect_zoom (scope='tab' only) drops panes hidden by a zoomed tab
-    -- ghostty scope is one of 'tab' | 'window' | 'all' (default)
     -- rex scope is one of 'window' (default) | 'session'
     -- rex respect_zoom (scope='window' only) drops blocks hidden by a zoomed block
     sources = {
@@ -266,48 +264,6 @@ are dropped from the candidates. If the zoom is on a *different* pane than the
 nvim one, the picker does not open at all, since the nvim pane is hidden and
 there is nothing visible to switch between. Wider scopes target other tabs /
 workspaces, which zoom does not hide, so they ignore `respect_zoom`.
-
-On macOS, the `ghostty` source drives Ghostty through its AppleScript
-dictionary, so nvim can jump to terminals living in other Ghostty windows and
-tabs:
-
-```lua
-require('window-picker').setup({
-    sources = {
-        nvim = true,
-        ghostty = { scope = 'all' },
-    },
-})
-```
-
-`scope` is `tab` (splits of the tab nvim runs in), `window` (terminals of that
-Ghostty window) or `all` (default, every Ghostty window and tab). The terminal
-id of a surface is not exported to the processes running inside it, so the nvim
-terminal is detected as follows: while Ghostty is the frontmost app, the focused
-terminal of the selected tab of the front window is nvim's surface (that is
-where the keystroke came from); otherwise the process cwd is matched and the
-terminal title breaks ties. The detected surface itself is always left out of
-the candidates. When detection fails, `scope = 'tab'` / `'window'` yield no
-candidates (with a warning) instead of falling back to `all`, so a narrow scope
-never pulls in other tabs or windows. The GTK build of Ghostty has no scripting
-dictionary, so this source is a no-op outside macOS.
-
-Because every AppleScript query is a separate IPC round trip, the terminal list
-is cached and refreshed in the background (`CursorHold`, `WinNew`, `TabEnter`,
-`FocusGained`, and again while a pick is waiting for its selection char), so
-opening the picker normally costs nothing. `cache_ttl` (milliseconds, default
-`5000`) is how long a cached snapshot may be reused when no prefetch happened in
-the meantime — a longer value trades a little staleness for fewer blocking
-round trips:
-
-```lua
-require('window-picker').setup({
-    sources = {
-        nvim = true,
-        ghostty = { scope = 'tab', cache_ttl = 5000 },
-    },
-})
-```
 
 When running inside a Rex block (`REX_SESSION` / `REX_BLOCK` are set) the `rex`
 source offers the other blocks of the same session. `scope` is `window`

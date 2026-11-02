@@ -61,8 +61,8 @@ function M.register_renderer(name, factory)
 end
 
 ---arm background prefetch for every source that supports it, so slow sources
----(ghostty's apple-script round trip) have their cache warm before the picker
----is ever opened.
+---(herdr's CLI round trip) have their cache warm before the picker is ever
+---opened.
 ---@param config table
 local function arm_source_prefetch(config)
 	local sources = config.sources
