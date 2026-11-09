@@ -8,8 +8,15 @@ https://github.com/s1n7ax/nvim-window-picker/assets/18459807/8a6a57e2-8be0-4385-
 
 https://github.com/s1n7ax/nvim-window-picker/assets/18459807/8d9a790b-cbcb-455d-8d74-97c55b3cc9b0
 
-This plugins prompts the user to pick a window and returns the window id of the
+This plugin prompts the user to pick a window and returns the window id of the
 picked window.
+
+This is a fork of
+[s1n7ax/nvim-window-picker](https://github.com/s1n7ax/nvim-window-picker),
+maintained at
+[huayue5201/nvim-window-picker](https://github.com/huayue5201/nvim-window-picker).
+The fork is installed from `main` because the source/renderer framework is not
+part of a tagged upstream release.
 
 ## Install
 
@@ -17,10 +24,9 @@ picked window.
 
 ```lua
 {
-    's1n7ax/nvim-window-picker',
+    'huayue5201/nvim-window-picker',
     name = 'window-picker',
     event = 'VeryLazy',
-    version = '2.*',
     config = function()
         require'window-picker'.setup()
     end,
@@ -31,8 +37,7 @@ picked window.
 
 ```lua
 use {
-    's1n7ax/nvim-window-picker',
-    tag = 'v2.*',
+    'huayue5201/nvim-window-picker',
     config = function()
         require'window-picker'.setup()
     end,
@@ -256,6 +261,11 @@ require('window-picker').setup({
 })
 ```
 
+In list form sources are collected in the order written. In map form they are
+sorted by name with `nvim` first, so nvim windows always get the first
+selection chars. In list form an entry can also reference a module with
+`{ name = 'my_tool', module = 'my.module' }`.
+
 When running inside a herdr pane (`HERDR_ENV=1`) you can pick across panes.
 The optional `scope` (`tab` | `workspace` (default) | `all`) and `respect_zoom`
 herdr options control which panes are offered. `respect_zoom` is only honored
@@ -322,8 +332,9 @@ Register your own source or renderer. Sources need
 `target:focus()` on selection. A source may also implement
 `abort(context) -> boolean`; when it returns true the picker closes without
 drawing anything and `pick_target()` reports `{ aborted = true, source = name }`
-as its second return value. Renderers need `supports(target)`,
-`draw(entries, ctx)` and `clear()`.
+as its second return value. A source may also implement `prefetch(opts)`, which
+is called from `setup()` to warm caches ahead of the first pick. Renderers need
+`supports(target)`, `draw(entries, ctx)` and `clear()`.
 
 ```lua
 require('window-picker').register_source('my_tool', {

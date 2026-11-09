@@ -1,0 +1,382 @@
+*window-picker.txt*  Pick a Neovim window or an external target
+
+==============================================================================
+CONTENTS                                             *window-picker-contents*
+
+  1. Introduction ................................. |window-picker-intro|
+  2. Install ...................................... |window-picker-install|
+  3. Setup ........................................ |window-picker-setup|
+  4. Public API ........................... |window-picker-api|
+     pick_window() ........................ |window-picker.pick_window()|
+     pick_target() ........................ |window-picker.pick_target()|
+     register_source() .................... |window-picker.register_source()|
+     register_renderer() ................. |window-picker.register_renderer()|
+  5. Sources .............................. |window-picker-sources|
+     nvim ................................. |window-picker-source-nvim|
+     herdr ................................ |window-picker-source-herdr|
+     rex .................................. |window-picker-source-rex|
+  6. Renderers ............................ |window-picker-renderers|
+     floating list ........................ |window-picker-floating-list|
+  7. Filters ...................................... |window-picker-filters|
+  8. Highlights and theming ....................... |window-picker-highlights|
+  9. Extending .................................... |window-picker-extending|
+
+==============================================================================
+1. INTRODUCTION                                          *window-picker-intro*
+
+The plugin prompts for a selection character and returns the picked window.
+Candidates come from one or more "sources"; "renderers" draw the hints for
+the targets they support. Any target without a matching renderer is shown in
+a floating list, so mixed sources work without extra configuration.
+
+This is a fork of s1n7ax/nvim-window-picker, maintained at
+huayue5201/nvim-window-picker.
+
+==============================================================================
+2. INSTALL                                             *window-picker-install*
+
+lazy.nvim: >lua
+  {
+      'huayue5201/nvim-window-picker',
+      name = 'window-picker',
+      event = 'VeryLazy',
+      config = function()
+          require('window-picker').setup()
+      end,
+  }
+<
+packer.nvim: >lua
+  use {
+      'huayue5201/nvim-window-picker',
+      config = function()
+          require('window-picker').setup()
+      end,
+  }
+<
+Do not pin a release tag: the source/renderer framework is newer than the
+last tagged upstream release.
+
+==============================================================================
+3. SETUP                                                 *window-picker-setup*
+
+>lua
+  require('window-picker').setup({
+      -- source selection, see |window-picker-sources|
+      sources = { 'nvim', { name = 'herdr', opts = { scope = 'tab' } } },
+
+      -- legacy hint name, see |window-picker-renderers|
+      hint = 'statusline-winbar',
+
+      -- characters offered for selection; extra targets use numbers
+      selection_chars = 'FJDKSLA;CMRUEIWOQP',
+
+      show_prompt = true,
+      prompt_message = 'Pick window: ',
+
+      picker_config = {
+          handle_mouse_click = false,
+          statusline_winbar_picker = {
+              selection_display = function(char, windowid)
+                  return '%=' .. char .. '%='
+              end,
+              use_winbar = 'never', -- 'always' | 'never' | 'smart'
+          },
+          floating_big_letter = { font = 'ansi-shadow' },
+          floating_list = { -- see |window-picker-floating-list|
+              position = 'middle-right',
+          },
+      },
+
+      filter_rules = { -- see |window-picker-filters|
+          autoselect_one = true,
+          include_current_win = false,
+      },
+
+      highlights = { -- see |window-picker-highlights|
+          enabled = true,
+      },
+  })
+<
+Every option can also be passed directly to |window-picker.pick_window()| or
+|window-picker.pick_target()| to override the setup config for one call.
+
+==============================================================================
+4. PUBLIC API                                              *window-picker-api*
+
+------------------------------------------------------------------------------
+pick_window({opts})                              *window-picker.pick_window()*
+
+Collect targets, let the user pick one, focus it, and return the Neovim
+window id. External targets (herdr panes, Rex blocks) are focused as a side
+effect and yield `nil`. Abort information is discarded, so the result is
+safe to pass straight to `nvim_set_current_win()`.
+
+------------------------------------------------------------------------------
+pick_target({opts})                              *window-picker.pick_target()*
+
+Like |window-picker.pick_window()| but returns the raw target table, plus
+abort information as a second return value: >lua
+  local target, abort_info = require('window-picker').pick_target()
+  if target then
+      -- target.kind is 'nvim', 'herdr', 'rex', or a custom kind
+  elseif abort_info then
+      -- abort_info = { aborted = true, source = 'herdr' }
+  end
+<
+A target contains `id`, `kind`, optional `title`, `detail`, `window`, and a
+`focus` function. The picker calls `target.focus(target)` on selection.
+
+------------------------------------------------------------------------------
+register_source({name}, {factory})           *window-picker.register_source()*
+
+Register a third-party source. See |window-picker-extending|.
+
+------------------------------------------------------------------------------
+register_renderer({name}, {factory})       *window-picker.register_renderer()*
+
+Register a third-party renderer. See |window-picker-extending|.
+
+==============================================================================
+5. SOURCES                                             *window-picker-sources*
+
+`sources` accepts two forms:
+
+List form keeps the written order: >lua
+  sources = { 'nvim', { name = 'herdr', opts = { scope = 'tab' } } }
+<
+Map form sorts by name with `nvim` first, so Neovim windows get the first
+selection characters: >lua
+  sources = {
+      nvim = true,
+      herdr = { scope = 'tab' },
+      rex = { scope = 'window' },
+  }
+<
+The default is `sources = { nvim = true }`. Built-in sources are `nvim`,
+`herdr`, and `rex`. Duplicate target ids are ignored. In list form, a source
+entry may reference a module with
+`{ name = 'my_tool', module = 'my.module' }`.
+
+------------------------------------------------------------------------------
+NVIM SOURCE                                     *window-picker-source-nvim*
+
+Always available. Lists the windows of the current tabpage and supports the
+|window-picker-filters|. It accepts no source-specific options.
+
+------------------------------------------------------------------------------
+HERDR SOURCE                                   *window-picker-source-herdr*
+
+Available when Neovim runs inside a herdr pane (`HERDR_ENV=1`). Lists panes
+from the herdr session, nearest first (current tab, then current workspace,
+then the rest), excluding Neovim's own pane.
+
+Options: >lua
+  sources = {
+      herdr = {
+          scope = 'workspace', -- 'tab' | 'workspace' | 'all'
+          respect_zoom = false,
+      },
+  }
+<
+`scope` defaults to `'workspace'`. `respect_zoom` only takes effect when
+`scope = 'tab'`; when that tab is zoomed, panes other than the focused one
+are dropped. If the focused pane is not Neovim's own pane, the picker aborts
+without drawing: the Neovim pane is hidden and there is nothing visible to
+switch to. Wider scopes ignore zoom and are not aborted by it.
+
+`HERDR_SOCKET_PATH` overrides the default herdr socket location
+(`~/.config/herdr/herdr.sock`).
+
+------------------------------------------------------------------------------
+REX SOURCE                                       *window-picker-source-rex*
+
+Available when `REX_SESSION` and `REX_BLOCK` are set and the `rex` binary is
+executable. Lists other blocks of the same Rex session, nearest first (other
+blocks of the current window, then the rest). Titles come from each block's
+foreground program and details from its working directory.
+
+Options: >lua
+  sources = {
+      rex = {
+          scope = 'window', -- 'window' | 'session'
+          respect_zoom = true,
+      },
+  }
+<
+`scope` defaults to `'window'` (other panes of the Rex window Neovim runs in);
+`'session'` includes every Rex window and labels targets from other windows.
+`respect_zoom` defaults to `true` and only takes effect with
+`scope = 'window'`. When a sibling block is zoomed, hidden blocks are dropped;
+when Neovim's own block is hidden, the picker aborts without drawing.
+
+The binary is resolved from `REX_BIN`, then `REX_BIN_DIR .. '/rex'`, then
+`$PATH`. Snapshots and per-block process information are cached; enabling the
+source also arms a background prefetch on `CursorHold`/`CursorHoldI`,
+`WinNew`, `TabEnter`, and `FocusGained`.
+
+==============================================================================
+6. RENDERERS                                         *window-picker-renderers*
+
+Built-in renderers:
+
+  `nvim_statusline_winbar`   statusline/winbar hints for nvim targets
+  `nvim_floating_letter`     floating letter per nvim window
+  `nvim_floating_big_letter` floating big letter per nvim window
+  `floating_list`            floating list; fallback for every target
+
+The `hint` option maps onto a renderer:
+  `'statusline-winbar'`      -> `nvim_statusline_winbar`
+  `'floating-letter'`        -> `nvim_floating_letter`
+  `'floating-big-letter'`    -> `nvim_floating_big_letter`
+
+`renderers` takes precedence over `hint`: >lua
+  renderers = { 'nvim_statusline_winbar', 'floating_list' }
+<
+The nvim renderers only accept targets with `kind == 'nvim'`. Any target they
+do not support is drawn by `floating_list`, which accepts everything. Passing
+a table as `hint` with a `draw` function uses that object as a renderer,
+preserving the historical custom-hint interface (`set_config`, `draw`,
+`clear`).
+
+------------------------------------------------------------------------------
+FLOATING LIST                                 *window-picker-floating-list*
+
+Configured under `picker_config.floating_list`. This renderer is also the
+fallback for herdr panes and Rex blocks: >lua
+  picker_config = {
+      floating_list = {
+          position = 'middle-right',
+          offset_x = 0,
+          offset_y = 0,
+          border = 'none',
+          label_padding = 1,
+          label_hl = 'DiagnosticVirtualTextHint',
+          window_bg = 'WindowPickerWindow',
+      },
+  }
+<
+`position` is one of `'top-left'`, `'top-right'`, `'middle-left'`,
+`'middle-right'`, `'bottom-left'`, `'bottom-right'`, or `'center'`.
+`offset_x`/`offset_y` are in cells. `border` accepts any `:h winborder`
+value. `label_padding` adds spaces around the selection character.
+`label_hl` highlights the character; `window_bg` is the highlight group
+painted behind the list.
+
+==============================================================================
+7. FILTERS                                             *window-picker-filters*
+
+Filters apply to the nvim source only. `filter_func(windows, filter_rules)`
+takes the window ids and must return the ids to include: >lua
+  filter_func = function(windows, filters)
+      return windows
+  end
+<
+When `filter_func` is set the built-in rules are not applied.
+
+`filter_rules` defaults: >lua
+  filter_rules = {
+      autoselect_one = true,
+      include_current_win = false,
+      include_unfocusable_windows = false,
+      bo = {
+          filetype = { 'NvimTree', 'neo-tree', 'notify', 'snacks_notif' },
+          buftype = { 'terminal' },
+      },
+      wo = {},
+      file_path_contains = {},
+      file_name_contains = {},
+  }
+<
+`autoselect_one` picks the only candidate without prompting.
+`include_current_win` includes Neovim's current window.
+`include_unfocusable_windows` keeps windows marked unfocusable.
+`bo.filetype` and `bo.buftype` exclude matching buffer options.
+`wo` excludes windows matching the given window options.
+`file_path_contains` and `file_name_contains` exclude matches from the
+buffer name.
+
+For backward compatibility, top-level `autoselect_one` and
+`include_current_win` are copied into `filter_rules`.
+
+==============================================================================
+8. HIGHLIGHTS AND THEMING                         *window-picker-highlights*
+
+>lua
+  highlights = {
+      enabled = true,
+      statusline = {
+          focused = { fg = '#ededed', bg = '#e35e4f', bold = true },
+          unfocused = { fg = '#ededed', bg = '#44cc41', bold = true },
+      },
+      winbar = {
+          focused = { fg = '#ededed', bg = '#e35e4f', bold = true },
+          unfocused = { fg = '#ededed', bg = '#44cc41', bold = true },
+      },
+  }
+<
+`setup()` defines these highlight groups only when they are not already
+defined, so existing colors are preserved:
+
+  `WindowPickerStatusLine`     focused statusline
+  `WindowPickerStatusLineNC`   unfocused statusline
+  `WindowPickerWinBar`         focused winbar
+  `WindowPickerWinBarNC`       unfocused winbar
+
+It always defines `WindowPickerWindow` with `bg=NONE`, used as the backdrop
+of the floating list. Set `highlights.enabled = false` to skip the statusline
+and winbar groups. The legacy `current_win_hl_color` and
+`other_win_hl_color` options override the focused/unfocused backgrounds.
+
+You can also define the four window groups yourself and leave
+`highlights.enabled` alone; `setup()` will not overwrite them.
+
+==============================================================================
+9. EXTENDING                                         *window-picker-extending*
+
+A source factory is a table or module name with: >lua
+  new(opts, config)                   -- return a source instance
+  available()                         -- boolean
+  list(context)                       -- target[]
+  abort(context)                      -- optional, boolean
+  prefetch(opts)                      -- optional, called from setup()
+<
+`prefetch` warms caches before the first pick. When `abort` returns true,
+the picker closes without drawing and |window-picker.pick_target()| returns
+`{ aborted = true, source = name }`.
+
+>lua
+  require('window-picker').register_source('my_tool', {
+      new = function(self, opts, config)
+          return setmetatable({}, { __index = self })
+      end,
+      available = function()
+          return true
+      end,
+      list = function()
+          return { { id = 'x', kind = 'my_tool' } }
+      end,
+  })
+<
+A renderer factory is a table or module name with: >lua
+  new(config)                         -- return a renderer instance
+  supports(target)                    -- boolean
+  draw(entries, ctx)                  -- entries: { target, char, index }
+  clear()                             -- undo draw()
+<
+>lua
+  require('window-picker').register_renderer('my_renderer', {
+      new = function(config)
+          return setmetatable({}, { __index = renderer })
+      end,
+      supports = function(target)
+          return target.kind == 'my_tool'
+      end,
+      draw = function(self, entries, ctx) end,
+      clear = function(self) end,
+  })
+<
+Registered names are resolved before built-in modules. In list form, a source
+entry may also point directly at a module with
+`{ name = 'my_tool', module = 'my.module' }`.
+
+ vim:tw=78:ts=8:ft=help:norl:
