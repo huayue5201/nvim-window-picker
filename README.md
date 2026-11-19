@@ -20,6 +20,13 @@ part of a tagged upstream release.
 
 ## Install
 
+### vim.pack (Neovim 0.12+)
+
+```lua
+vim.pack.add({ "https://github.com/huayue5201/nvim-window-picker" })
+require('window-picker').setup()
+```
+
 ### lazy
 
 ```lua
